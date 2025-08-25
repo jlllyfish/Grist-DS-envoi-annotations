@@ -80,7 +80,7 @@ jobs:
     - name: 🚀 Execute synchronization
       run: |
         cd shared
-        python sync_cli.py --config ../projects/${{ env.PROJECT_NAME }}/config.json --verbose
+        python sync_cli.py --config ../projects/${{ env.PROJECT_NAME }}/config.json --verbose --yes
       
     - name: 📋 Upload logs on failure
       if: failure()
