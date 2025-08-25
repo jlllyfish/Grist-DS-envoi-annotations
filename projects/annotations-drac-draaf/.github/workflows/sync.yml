@@ -10,7 +10,7 @@ env:
 on:
   # ⏰ Planification automatique
   schedule:
-    - cron:'0 10 * * *'      # 🌅 Une fois par jour à 10h
+    - cron: '0 10 * * *'      # 🌅 Une fois par jour à 10h
     # 🕘 Personnaliser selon vos besoins de synchronisation
     # Exemples :
     # - cron: '0 8,12,16 * * 1-5'  # 🕗🕛🕓 3 fois par jour
