@@ -1,0 +1,13 @@
+Flask==2.3.3
+requests==2.31.0
+python-dateutil==2.8.2
+
+# Optionnel pour l'amélioration des performances
+gunicorn==21.2.0
+
+# Optionnel pour les tests
+pytest==7.4.2
+pytest-mock==3.11.1
+
+# Optionnel pour le développement
+python-dotenv==1.0.0
