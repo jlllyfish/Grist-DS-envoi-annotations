@@ -21,15 +21,13 @@ on:
   workflow_dispatch:
     inputs:
       limit:
-        description: '📊 Nombre max d\'enregistrements à traiter'
+        description: "📊 Nombre max d'enregistrements à traiter"
         required: false
-        default: '50'
-        type: string
+        default: "50"
       dry_run:
-        description: '🧪 Mode test (aucune modification)'
+        description: "🧪 Mode test (aucune modification)"
         required: false
-        default: false
-        type: boolean
+        default: "false"
 
 jobs:
   sync:
@@ -55,7 +53,6 @@ jobs:
         GRIST_TOKEN: ${{ secrets.DRAC_DRAAF_GRIST_TOKEN }}
         DS_TOKEN: ${{ secrets.DRAC_DRAAF_DS_TOKEN }}
         DS_INSTRUCTEUR_ID: ${{ secrets.DRAC_DRAAF_DS_INSTRUCTEUR_ID }}
-        # 🎯 Remplacer MON_PROJET par votre nom de projet
       run: |
         # 📋 Charger la config de base et injecter les secrets
         python3 -c "
@@ -73,7 +70,7 @@ jobs:
         
         # 🎛️ Paramètres depuis les inputs (si déclenchement manuel)
         limit = '${{ github.event.inputs.limit }}' or '${{ env.DEFAULT_LIMIT }}'
-        dry_run = '${{ github.event.inputs.dry_run }}' == 'true'
+        dry_run = '${{ github.event.inputs.dry_run }}'.lower() == 'true'
         
         config['limit'] = int(limit)
         config['dry_run'] = dry_run
