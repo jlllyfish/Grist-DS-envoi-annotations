@@ -136,6 +136,9 @@ Exemples d'utilisation:
   
   # Limiter le nombre d'enregistrements
   python sync_cli.py --config config.json --limit 10
+  
+  # Mode automatique (sans confirmation)
+  python sync_cli.py --config config.json --yes
         """
     )
     
@@ -180,6 +183,12 @@ Exemples d'utilisation:
         '--test-connections',
         action='store_true',
         help='Teste uniquement les connexions'
+    )
+    
+    parser.add_argument(
+        '--yes', '-y',
+        action='store_true',
+        help='Mode automatique : ne demande pas de confirmation'
     )
     
     args = parser.parse_args()
@@ -259,11 +268,16 @@ Exemples d'utilisation:
     print(f"   • Limite: {config.limit} enregistrements")
     print(f"   • Mise à jour statut Grist: {'Oui' if config.update_grist_status else 'Non'}")
     
-    if not args.dry_run:
+    # Gestion de la confirmation selon les modes
+    if not args.dry_run and not args.yes:
         response = input("\n❓ Continuer la synchronisation ? [y/N]: ")
         if response.lower() not in ['y', 'yes', 'o', 'oui']:
             print("Synchronisation annulée")
             sys.exit(0)
+    elif args.yes and not args.dry_run:
+        print("\n🤖 Mode automatique - Synchronisation confirmée")
+    elif args.dry_run:
+        print("\n🧪 Mode test - Pas de confirmation nécessaire")
     
     # Exécuter la synchronisation
     print("\n🚀 Début de la synchronisation...")
