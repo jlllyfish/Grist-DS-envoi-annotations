@@ -1,11 +1,10 @@
 name: 🔄 Drac Draaf Grist to DS Sync
-# 📝 Personnaliser le nom selon votre projet
 
 env:
   PROJECT_NAME: annotations-drac-draaf
-  # 🎯 Personnaliser selon votre projet
+  # 🎯 Nom du dossier projet
   DEFAULT_LIMIT: 50
-  # ⚙️ Ajuster selon vos besoins (max 500)
+  # ⚙️ Limite par défaut (max 500)
   
 on:
   # ⏰ Planification automatique
@@ -13,8 +12,8 @@ on:
     - cron: '0 10 * * *'      # 🌅 Une fois par jour à 10h
     # 🕘 Personnaliser selon vos besoins de synchronisation
     # Exemples :
-    # - cron: '0 8,12,16 * * 1-5'  # 🕗🕛🕓 3 fois par jour
-    # - cron: '*/30 9-17 * * 1-5'  # ⏱️ Toutes les 30min, 9h-17h
+    # - cron: '0 8,12,16 * * 1-5'  # 🕗🕛🕓 3 fois par jour, lun-ven
+    # - cron: '*/30 9-17 * * 1-5'  # ⏱️ Toutes les 30min, 9h-17h, lun-ven
     # - cron: '0 10 * * *'         # 🌅 Une fois par jour à 10h
   
   # 🎮 Déclenchement manuel
@@ -24,10 +23,12 @@ on:
         description: "📊 Nombre max d'enregistrements à traiter"
         required: false
         default: "50"
+        type: string
       dry_run:
         description: "🧪 Mode test (aucune modification)"
         required: false
-        default: "false"
+        default: false
+        type: boolean
 
 jobs:
   sync:
@@ -49,43 +50,37 @@ jobs:
         
     - name: 🔧 Create dynamic config
       env:
-        # 🔐 Secrets spécifiques au projet - À PERSONNALISER
+        # 🔐 Secrets spécifiques au projet DRAC-DRAAF
         GRIST_TOKEN: ${{ secrets.DRAC_DRAAF_GRIST_TOKEN }}
         DS_TOKEN: ${{ secrets.DRAC_DRAAF_DS_TOKEN }}
         DS_INSTRUCTEUR_ID: ${{ secrets.DRAC_DRAAF_DS_INSTRUCTEUR_ID }}
       run: |
-        # 📋 Charger la config de base et injecter les secrets
+        # 🔄 Remplacer les placeholders par les vrais secrets
+        sed -i "s/{{ GRIST_TOKEN }}/$GRIST_TOKEN/g" projects/${{ env.PROJECT_NAME }}/config.json
+        sed -i "s/{{ DS_TOKEN }}/$DS_TOKEN/g" projects/${{ env.PROJECT_NAME }}/config.json  
+        sed -i "s/{{ DS_INSTRUCTEUR_ID }}/$DS_INSTRUCTEUR_ID/g" projects/${{ env.PROJECT_NAME }}/config.json
+        
+        # 🎛️ Ajuster les paramètres dynamiques
+        limit="${{ github.event.inputs.limit || env.DEFAULT_LIMIT }}"
+        dry_run="${{ github.event.inputs.dry_run == true }}"
+        
+        # 📝 Mettre à jour limit et dry_run dans le JSON
         python3 -c "
         import json
-        import os
-        
-        # 📖 Charger config.json (sans les secrets)
-        with open('projects/${{ env.PROJECT_NAME }}/config.json', 'r') as f:
+        with open('projects/${{ env.PROJECT_NAME }}/config.json', 'r+') as f:
             config = json.load(f)
-        
-        # 🔑 Injecter les secrets depuis les variables d'environnement
-        config['grist_token'] = os.environ['GRIST_TOKEN']
-        config['ds_token'] = os.environ['DS_TOKEN'] 
-        config['ds_instructeur_id'] = os.environ['DS_INSTRUCTEUR_ID']
-        
-        # 🎛️ Paramètres depuis les inputs (si déclenchement manuel)
-        limit = '${{ github.event.inputs.limit }}' or '${{ env.DEFAULT_LIMIT }}'
-        dry_run = '${{ github.event.inputs.dry_run }}'.lower() == 'true'
-        
-        config['limit'] = int(limit)
-        config['dry_run'] = dry_run
-        
-        # 💾 Sauvegarder la config complète temporairement
-        with open('/tmp/runtime_config.json', 'w') as f:
+            config['limit'] = int('$limit')
+            config['dry_run'] = '$dry_run' == 'True'
+            f.seek(0)
             json.dump(config, f, indent=2)
-        
-        print(f'✅ Config créée - Limite: {limit}, Dry run: {dry_run}')
+            f.truncate()
+        print(f'✅ Config finalisée - Limite: $limit, Dry run: $dry_run')
         "
         
     - name: 🚀 Execute synchronization
       run: |
         cd shared
-        python sync_cli.py --config /tmp/runtime_config.json --verbose
+        python sync_cli.py --config ../projects/${{ env.PROJECT_NAME }}/config.json --verbose
       
     - name: 📋 Upload logs on failure
       if: failure()
@@ -93,8 +88,8 @@ jobs:
       with:
         name: sync-logs-${{ env.PROJECT_NAME }}-${{ github.run_number }}
         path: |
-          sync.log
-          *.log
+          shared/sync.log
+          shared/*.log
         retention-days: 7
         
     - name: 🚨 Notify on failure (optionnel)
@@ -102,11 +97,16 @@ jobs:
       run: |
         echo "⚠️ Synchronisation échouée pour le projet ${{ env.PROJECT_NAME }}"
         echo "📊 Consultez les logs dans les artifacts de cette exécution"
+        echo "🔍 Vérifiez aussi les secrets GitHub : DRAC_DRAAF_GRIST_TOKEN, DRAC_DRAAF_DS_TOKEN, DRAC_DRAAF_DS_INSTRUCTEUR_ID"
         # 💬 Ici vous pourriez ajouter une notification Slack, email, etc.
 
     - name: 🧹 Clean up sensitive files
       if: always()
       run: |
-        # 🗑️ Nettoyer les fichiers contenant des secrets
-        rm -f /tmp/runtime_config.json
-        rm -f sync.log
+        # 🔄 Restaurer les placeholders dans le config pour sécurité
+        cd projects/${{ env.PROJECT_NAME }}
+        sed -i "s/$GRIST_TOKEN/{{ GRIST_TOKEN }}/g" config.json || true
+        sed -i "s/$DS_TOKEN/{{ DS_TOKEN }}/g" config.json || true  
+        sed -i "s/$DS_INSTRUCTEUR_ID/{{ DS_INSTRUCTEUR_ID }}/g" config.json || true
+        cd ../../shared
+        rm -f sync.log *.log || true
