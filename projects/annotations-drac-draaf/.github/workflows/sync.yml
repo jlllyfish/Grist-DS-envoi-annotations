@@ -1,8 +1,8 @@
-name: 🔄 Grist to DS Sync
+name: 🔄 Drac Draaf Grist to DS Sync
 # 📝 Personnaliser le nom selon votre projet
 
 env:
-  PROJECT_NAME: mon-projet-example
+  PROJECT_NAME: annotations-drac-draaf
   # 🎯 Personnaliser selon votre projet
   DEFAULT_LIMIT: 50
   # ⚙️ Ajuster selon vos besoins (max 500)
@@ -10,7 +10,7 @@ env:
 on:
   # ⏰ Planification automatique
   schedule:
-    - cron: '0 9,17 * * 1-5'  # 9h et 17h, lundi-vendredi
+    - cron:'0 10 * * *'      # 🌅 Une fois par jour à 10h
     # 🕘 Personnaliser selon vos besoins de synchronisation
     # Exemples :
     # - cron: '0 8,12,16 * * 1-5'  # 🕗🕛🕓 3 fois par jour
@@ -52,9 +52,9 @@ jobs:
     - name: 🔧 Create dynamic config
       env:
         # 🔐 Secrets spécifiques au projet - À PERSONNALISER
-        GRIST_TOKEN: ${{ secrets.MON_PROJET_GRIST_TOKEN }}
-        DS_TOKEN: ${{ secrets.MON_PROJET_DS_TOKEN }}
-        DS_INSTRUCTEUR_ID: ${{ secrets.MON_PROJET_DS_INSTRUCTEUR_ID }}
+        GRIST_TOKEN: ${{ secrets.DRAC_DRAAF_GRIST_TOKEN }}
+        DS_TOKEN: ${{ secrets.DRAC_DRAAF_DS_TOKEN }}
+        DS_INSTRUCTEUR_ID: ${{ secrets.DRAC_DRAAF_DS_INSTRUCTEUR_ID }}
         # 🎯 Remplacer MON_PROJET par votre nom de projet
       run: |
         # 📋 Charger la config de base et injecter les secrets
