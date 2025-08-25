@@ -1,5 +1,4 @@
 {
-  "_security_note": "Tokens exclus - À configurer via secrets GitHub ou variables d'environnement",
   "annotation_types": {
     "Attribution des montants": "text",
     "DRAAF": "text",
@@ -23,15 +22,15 @@
     "montant_drac": "Montant DRAC",
     "montant_total_drac_draaf": "Montant Total (DRAC/DRAAF)"
   },
-  "detect_changes": true,
   "dossier_number_column": "dossier_number",
   "dry_run": false,
   "ds_demarche_number": 122654,
-  "exported_at": "2025-08-25T10:15:33.843971",
-  "exported_from": "web_interface",
+  "ds_instructeur_id": "{{ DS_INSTRUCTEUR_ID }}",
+  "ds_token": "{{ DS_TOKEN }}",
   "grist_base_url": "https://grist.numerique.gouv.fr/api",
   "grist_doc_id": "6HM8Uiy3H6nx8M4fwTDM2N",
   "grist_table_id": "Demarche_122654_annotations",
+  "grist_token": "{{ GRIST_TOKEN }}",
   "limit": "50",
   "update_grist_status": true
 }
