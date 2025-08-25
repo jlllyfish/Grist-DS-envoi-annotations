@@ -1,0 +1,253 @@
+{% extends "base.html" %} {% block title %}Configuration - Grist → DS Sync{%
+endblock %} {% block content %}
+
+<div class="row">
+  <div class="col-md-8">
+    <h1>Configuration des connexions</h1>
+    <p class="text-muted">
+      Configurez vos tokens d'accès pour Grist et Démarches Simplifiées
+    </p>
+
+    <form method="POST" action="{{ url_for('configure') }}">
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5><i class="bi bi-shield-lock"></i> Démarches Simplifiées</h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label for="ds_token" class="form-label">Token DS *</label>
+            <input
+              type="password"
+              class="form-control"
+              id="ds_token"
+              name="ds_token"
+              value="{{ config.ds_token }}"
+              placeholder="Votre token DS"
+              required
+            />
+            <div class="form-text">Token d'authentification pour l'API DS</div>
+          </div>
+          <div class="mb-3">
+            <label for="instructeur_id" class="form-label"
+              >ID Instructeur *</label
+            >
+            <input
+              type="text"
+              class="form-control"
+              id="instructeur_id"
+              name="instructeur_id"
+              value="{{ config.instructeur_id }}"
+              placeholder="ID de l'instructeur"
+              required
+            />
+          </div>
+          <div class="mb-3">
+            <label for="demarche_number" class="form-label"
+              >Numéro de démarche</label
+            >
+            <input
+              type="number"
+              class="form-control"
+              id="demarche_number"
+              name="demarche_number"
+              value="{{ config.demarche_number }}"
+              placeholder="Ex: 12345"
+              min="1"
+            />
+            <div class="form-text">Numéro de la démarche DS à utiliser</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card mb-4">
+        <div class="card-header">
+          <h5><i class="bi bi-table"></i> Grist</h5>
+        </div>
+        <div class="card-body">
+          <div class="mb-3">
+            <label for="grist_token" class="form-label">Token Grist *</label>
+            <input
+              type="password"
+              class="form-control"
+              id="grist_token"
+              name="grist_token"
+              value="{{ config.grist_token }}"
+              placeholder="Votre token Grist"
+              required
+            />
+            <div class="form-text">
+              Token d'authentification pour l'API Grist
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="grist_doc_id" class="form-label"
+              >ID Document Grist *</label
+            >
+            <input
+              type="text"
+              class="form-control"
+              id="grist_doc_id"
+              name="grist_doc_id"
+              value="{{ config.grist_doc_id }}"
+              placeholder="ID du document Grist"
+              required
+            />
+            <div class="form-text">
+              Identifiant du document Grist à utiliser
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-lg">
+        <i class="bi bi-check-circle"></i> Sauvegarder la configuration
+      </button>
+    </form>
+  </div>
+
+  <div class="col-md-4">
+    <div class="card">
+      <div class="card-header">
+        <h5><i class="bi bi-activity"></i> Test des connexions</h5>
+      </div>
+      <div class="card-body">
+        <button id="test-connections" class="btn btn-info mb-3 w-100">
+          <i class="bi bi-wifi"></i> Tester les connexions
+        </button>
+
+        <div id="loading" class="loading">
+          <div class="spinner-border spinner-border-sm" role="status">
+            <span class="visually-hidden">Chargement...</span>
+          </div>
+          Test en cours...
+        </div>
+
+        <div id="connection-results"></div>
+      </div>
+    </div>
+
+    {% if config.ds_token and config.grist_token %}
+    <div class="card mt-3">
+      <div class="card-header">
+        <h5><i class="bi bi-arrow-right-circle"></i> Prochaines étapes</h5>
+      </div>
+      <div class="card-body">
+        <div class="d-grid gap-2">
+          <a href="{{ url_for('sync_page') }}" class="btn btn-success">
+            <i class="bi bi-sync"></i> Configurer la synchronisation
+          </a>
+
+          <hr />
+
+          <h6>💡 Automatisation</h6>
+          <p class="text-muted small">
+            Une fois votre synchronisation configurée, vous pourrez
+            l'automatiser avec des tâches planifiées en utilisant notre script
+            en ligne de commande.
+          </p>
+          <details class="small">
+            <summary class="text-primary" style="cursor: pointer">
+              Voir les commandes CLI
+            </summary>
+            <div class="mt-2 p-2 bg-light rounded">
+              <code>python sync_cli.py --create-config config.json</code><br />
+              <code>python sync_cli.py --config config.json --dry-run</code
+              ><br />
+              <code>python sync_cli.py --config config.json</code>
+            </div>
+          </details>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card mt-3">
+      <div class="card-header">
+        <h5><i class="bi bi-info-circle"></i> Aide</h5>
+      </div>
+      <div class="card-body">
+        <h6>Où trouver les tokens ?</h6>
+        <ul class="small">
+          <li><strong>Token DS :</strong> Profil → API → Générer un token</li>
+          <li><strong>ID Instructeur :</strong> URL profil DS</li>
+          <li><strong>Token Grist :</strong> Document → Partage → API</li>
+          <li><strong>Doc ID Grist :</strong> URL du document</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %} {% block scripts %}
+<script>
+  document
+    .getElementById("test-connections")
+    .addEventListener("click", function () {
+      const button = this;
+      const loading = document.getElementById("loading");
+      const results = document.getElementById("connection-results");
+
+      button.disabled = true;
+      loading.style.display = "block";
+      results.innerHTML = "";
+
+      fetch("/test_connections")
+        .then((response) => response.json())
+        .then((data) => {
+          loading.style.display = "none";
+          button.disabled = false;
+
+          let html = "";
+
+          // Test Grist
+          if (data.grist) {
+            html += `<div class="connection-status ${
+              data.grist.success ? "connection-success" : "connection-error"
+            }">
+                    <strong>Grist:</strong> ${
+                      data.grist.success
+                        ? "✅ Connexion réussie"
+                        : "❌ Échec de connexion"
+                    }
+                    ${
+                      !data.grist.success
+                        ? "<br><small>" +
+                          JSON.stringify(data.grist.data) +
+                          "</small>"
+                        : ""
+                    }
+                </div>`;
+          }
+
+          // Test DS
+          if (data.ds) {
+            html += `<div class="connection-status ${
+              data.ds.success ? "connection-success" : "connection-error"
+            }">
+                    <strong>DS:</strong> ${
+                      data.ds.success
+                        ? "✅ Connexion réussie"
+                        : "❌ Échec de connexion"
+                    }
+                    ${
+                      !data.ds.success
+                        ? "<br><small>" +
+                          JSON.stringify(data.ds.data) +
+                          "</small>"
+                        : ""
+                    }
+                </div>`;
+          }
+
+          results.innerHTML = html;
+        })
+        .catch((error) => {
+          loading.style.display = "none";
+          button.disabled = false;
+          results.innerHTML = `<div class="connection-status connection-error">
+                <strong>Erreur:</strong> ${error.message}
+            </div>`;
+        });
+    });
+</script>
+{% endblock %}

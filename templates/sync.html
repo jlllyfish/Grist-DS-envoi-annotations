@@ -1,0 +1,1295 @@
+{% extends "base.html" %} {% block title %}Synchronisation - Grist → DS{%
+endblock %} {% block content %}
+
+<div class="row">
+  <div class="col-12">
+    <h1>Synchronisation automatique des annotations</h1>
+    <p class="text-muted">
+      Configurez et lancez la synchronisation des données Grist vers les
+      annotations DS
+    </p>
+
+    <div class="row">
+      <div class="col-md-8">
+        <div class="card">
+          <div class="card-header">
+            <h5>Configuration de la synchronisation</h5>
+            <div class="float-end">
+              <button id="verify-config" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-shield-check"></i> Vérifier la configuration
+              </button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="config-status" class="mb-3" style="display: none">
+              <!-- Statut de configuration sera affiché ici -->
+            </div>
+
+            <!-- Sélection de la table Grist -->
+            <div class="mb-4">
+              <h6>1. Table Grist</h6>
+              <button id="load-tables" class="btn btn-primary mb-2">
+                Charger les tables
+              </button>
+              <div id="grist-loading" class="loading">Chargement...</div>
+              <select
+                id="grist-tables"
+                class="form-select"
+                style="display: none"
+              >
+                <option value="">Sélectionner une table</option>
+              </select>
+            </div>
+
+            <!-- Sélection de la colonne ID dossier -->
+            <div class="mb-4" id="dossier-column-section" style="display: none">
+              <h6>2. Colonne contenant les numéros de dossiers DS</h6>
+              <select id="dossier-id-column" class="form-select">
+                <option value="">
+                  Sélectionner la colonne des numéros de dossiers
+                </option>
+              </select>
+              <div class="form-text">
+                Cette colonne doit contenir les <strong>numéros</strong> des
+                dossiers DS (ex: 25124197, 25124198...)
+              </div>
+            </div>
+
+            <!-- Sélection des colonnes à synchroniser -->
+            <div class="mb-4" id="columns-section" style="display: none">
+              <h6>3. Colonnes à synchroniser</h6>
+              <div id="columns-list"></div>
+            </div>
+
+            <!-- Mapping des annotations -->
+            <div class="mb-4" id="mapping-section" style="display: none">
+              <h6>4. Mapping vers les annotations DS</h6>
+              <button id="load-annotations" class="btn btn-info mb-2">
+                Charger les annotations DS
+              </button>
+              <div id="annotations-loading" class="loading">
+                Chargement des annotations...
+              </div>
+              <div id="mapping-form"></div>
+            </div>
+
+            <!-- Paramètres de synchronisation -->
+            <div class="mb-4" id="sync-params" style="display: none">
+              <h6>5. Paramètres</h6>
+              <div class="row">
+                <div class="col-md-6">
+                  <label for="sync-limit" class="form-label"
+                    >Limite d'enregistrements</label
+                  >
+                  <input
+                    type="number"
+                    id="sync-limit"
+                    class="form-control"
+                    value="50"
+                    min="1"
+                    max="500"
+                  />
+                  <small class="text-muted">Maximum 500 enregistrements</small>
+                </div>
+                <div class="col-md-6">
+                  <div class="form-check mt-4">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      id="update-grist-status"
+                      checked
+                    />
+                    <label class="form-check-label" for="update-grist-status">
+                      Mettre à jour le statut dans Grist
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      id="dry-run"
+                    />
+                    <label class="form-check-label" for="dry-run">
+                      Mode test (aucune modification)
+                    </label>
+                  </div>
+                  <div class="form-check">
+                    <input
+                      class="form-check-input"
+                      type="checkbox"
+                      id="detect-changes"
+                      checked
+                    />
+                    <label class="form-check-label" for="detect-changes">
+                      Détecter les modifications automatiquement
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Boutons d'action -->
+            <div class="mt-4" id="action-buttons" style="display: none">
+              <button id="validate-compatibility" class="btn btn-warning me-2">
+                <i class="bi bi-check-circle"></i> Valider la compatibilité
+              </button>
+              <button id="start-sync" class="btn btn-success me-2">
+                <i class="bi bi-play-circle"></i> Démarrer la synchronisation
+              </button>
+              <button id="export-config" class="btn btn-secondary">
+                <i class="bi bi-download"></i> Exporter la config
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-md-4">
+        <div class="card">
+          <div class="card-header">
+            <h5>Configuration actuelle</h5>
+          </div>
+          <div class="card-body">
+            <div id="current-config">
+              <p class="text-muted">Configurez d'abord la synchronisation</p>
+            </div>
+
+            <!-- Affichage des informations de persistance -->
+            <div class="mt-3">
+              <small class="text-info">
+                <i class="bi bi-info-circle"></i>
+                Configuration sauvegardée automatiquement
+              </small>
+            </div>
+          </div>
+        </div>
+
+        <div class="card mt-3">
+          <div class="card-header">
+            <h5>Statut des colonnes Grist</h5>
+          </div>
+          <div class="card-body">
+            <div class="alert alert-info small">
+              <strong>Colonnes recommandées :</strong><br />
+              • <code>sync_status</code> (Text)<br />
+              • <code>sync_date</code> (DateTime)<br />
+              • <code>sync_message</code> (Text)<br />
+              • <code>sync_hash</code> (Text)
+              <span class="badge bg-success">Nouveau!</span>
+            </div>
+            <button
+              id="check-grist-columns"
+              class="btn btn-sm btn-outline-info w-100"
+            >
+              Vérifier les colonnes
+            </button>
+            <div id="columns-status" class="mt-2"></div>
+          </div>
+        </div>
+
+        <!-- Card pour les actions de configuration -->
+        <div class="card mt-3">
+          <div class="card-header">
+            <h5>Actions</h5>
+          </div>
+          <div class="card-body">
+            <div class="d-grid gap-2">
+              <a
+                href="{{ url_for('index') }}"
+                class="btn btn-outline-primary btn-sm"
+              >
+                <i class="bi bi-gear"></i> Modifier les tokens
+              </a>
+              <button id="clear-config" class="btn btn-outline-danger btn-sm">
+                <i class="bi bi-trash"></i> Effacer la configuration
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Résultats de synchronisation -->
+    <div class="card mt-4" id="sync-results" style="display: none">
+      <div class="card-header">
+        <h5>Résultats de la synchronisation</h5>
+      </div>
+      <div class="card-body">
+        <div id="sync-status"></div>
+        <div id="sync-details" class="mt-3"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal pour la compatibilité -->
+<div class="modal fade" id="compatibilityModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Rapport de compatibilité</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <div id="compatibility-content"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          Fermer
+        </button>
+        <button type="button" class="btn btn-success" id="proceed-sync">
+          Continuer la synchronisation
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de debug pour les erreurs -->
+<div class="modal fade" id="debugModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Détails de l'erreur</h5>
+        <button
+          type="button"
+          class="btn-close"
+          data-bs-dismiss="modal"
+        ></button>
+      </div>
+      <div class="modal-body">
+        <div id="debug-content"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %} {% block scripts %}
+<script>
+  let gristTables = [];
+  let gristColumns = [];
+  let currentMapping = {};
+  let currentTable = "";
+  let dossierIdColumn = "";
+  let availableAnnotations = [];
+  let annotationTypes = {};
+  let annotationsLoaded = false;
+  let sampleData = {};
+
+  // Fonction pour afficher les erreurs détaillées
+  function showDebugModal(title, content) {
+    document.getElementById("debug-content").innerHTML = `
+      <h6>${title}</h6>
+      <pre style="background: #f8f9fa; padding: 10px; border-radius: 5px; font-size: 12px;">${content}</pre>
+    `;
+    new bootstrap.Modal(document.getElementById("debugModal")).show();
+  }
+
+  // Fonction améliorée de gestion d'erreur
+  function handleApiError(response, defaultMessage = "Erreur inconnue") {
+    return response.text().then((text) => {
+      console.error("Réponse serveur brute:", text);
+
+      try {
+        const data = JSON.parse(text);
+        const errorMsg = data.error || defaultMessage;
+
+        if (data.debug_info) {
+          console.log("Infos debug:", data.debug_info);
+        }
+
+        return errorMsg;
+      } catch (parseError) {
+        console.error("Erreur parse JSON:", parseError);
+        showDebugModal(
+          "Erreur de réponse serveur",
+          `
+Réponse reçue: ${text.substring(0, 1000)}...
+
+Erreur JSON: ${parseError.message}
+
+Cette erreur indique généralement:
+- Une erreur 500 du serveur
+- Un problème de configuration DS
+- Un token invalide ou expiré
+        `
+        );
+        return `Réponse serveur non-JSON: ${text.substring(0, 100)}...`;
+      }
+    });
+  }
+
+  // Charger les tables Grist
+  document.getElementById("load-tables").addEventListener("click", function () {
+    const button = this;
+    const loading = document.getElementById("grist-loading");
+    const tablesSelect = document.getElementById("grist-tables");
+
+    button.disabled = true;
+    loading.style.display = "block";
+    tablesSelect.style.display = "none";
+
+    fetch("/get_grist_tables")
+      .then((response) => {
+        if (!response.ok) {
+          return handleApiError(response, "Erreur chargement tables").then(
+            (msg) => {
+              throw new Error(msg);
+            }
+          );
+        }
+        return response.json();
+      })
+      .then((data) => {
+        loading.style.display = "none";
+        button.disabled = false;
+
+        if (data.success) {
+          gristTables = data.tables;
+          tablesSelect.innerHTML =
+            '<option value="">Sélectionner une table</option>';
+          data.tables.forEach((table) => {
+            tablesSelect.innerHTML += `<option value="${table.id}">${table.id}</option>`;
+          });
+          tablesSelect.style.display = "block";
+        } else {
+          throw new Error(data.error || "Erreur inconnue");
+        }
+      })
+      .catch((error) => {
+        loading.style.display = "none";
+        button.disabled = false;
+        alert("Erreur chargement tables: " + error.message);
+      });
+  });
+
+  // Charger les colonnes quand une table est sélectionnée
+  document
+    .getElementById("grist-tables")
+    .addEventListener("change", function () {
+      const tableId = this.value;
+      currentTable = tableId;
+
+      const dossierColumnSection = document.getElementById(
+        "dossier-column-section"
+      );
+      const columnsSection = document.getElementById("columns-section");
+      const mappingSection = document.getElementById("mapping-section");
+
+      if (!tableId) {
+        dossierColumnSection.style.display = "none";
+        columnsSection.style.display = "none";
+        mappingSection.style.display = "none";
+        return;
+      }
+
+      // Charger les colonnes et un échantillon de données
+      Promise.all([
+        fetch(`/get_table_columns/${tableId}`).then((r) => {
+          if (!r.ok) {
+            return handleApiError(r, "Erreur colonnes").then((msg) => {
+              throw new Error(msg);
+            });
+          }
+          return r.json();
+        }),
+        fetch(`/get_table_data/${tableId}?limit=3`).then((r) => {
+          if (!r.ok) {
+            return handleApiError(r, "Erreur données").then((msg) => {
+              throw new Error(msg);
+            });
+          }
+          return r.json();
+        }),
+      ])
+        .then(([columnsData, dataData]) => {
+          if (columnsData.success) {
+            gristColumns = columnsData.columns;
+
+            // Stocker les données échantillon
+            if (dataData.success && dataData.records.length > 0) {
+              sampleData = dataData.records[0].fields;
+            }
+
+            // Remplir les sélecteurs
+            populateColumnSelectors(columnsData.columns);
+            dossierColumnSection.style.display = "block";
+            columnsSection.style.display = "block";
+
+            setupEventListeners();
+          } else {
+            throw new Error(columnsData.error || "Erreur colonnes");
+          }
+        })
+        .catch((error) => {
+          alert("Erreur chargement colonnes: " + error.message);
+        });
+    });
+
+  function populateColumnSelectors(columns) {
+    const dossierIdSelect = document.getElementById("dossier-id-column");
+    const columnsList = document.getElementById("columns-list");
+
+    dossierIdSelect.innerHTML =
+      '<option value="">Sélectionner la colonne des numéros de dossiers</option>';
+    columnsList.innerHTML =
+      "<p><strong>Sélectionnez les colonnes à synchroniser :</strong></p>";
+
+    columns.forEach((column) => {
+      // Colonne ID dossier
+      dossierIdSelect.innerHTML += `<option value="${column.id}">${column.id} (${column.type})</option>`;
+
+      // Auto-sélection si "dossier_number" existe
+      if (column.id === "dossier_number") {
+        dossierIdSelect.value = column.id;
+        dossierIdColumn = column.id;
+      }
+
+      // Colonnes à synchroniser (sauf ID et dossier_number)
+      if (
+        column.type !== "Id" &&
+        column.id !== "dossier_number" &&
+        !column.id.startsWith("sync_")
+      ) {
+        const sampleValue = sampleData[column.id] || "";
+        const displayValue =
+          String(sampleValue).length > 20
+            ? String(sampleValue).substring(0, 20) + "..."
+            : String(sampleValue);
+
+        columnsList.innerHTML += `
+          <div class="form-check">
+            <input class="form-check-input sync-column" type="checkbox" value="${
+              column.id
+            }" id="sync-${column.id}">
+            <label class="form-check-label" for="sync-${column.id}">
+              ${column.id} (${column.type})
+              ${
+                sampleValue
+                  ? `<small class="text-muted">Ex: "${displayValue}"</small>`
+                  : ""
+              }
+            </label>
+          </div>`;
+      }
+    });
+  }
+
+  // Charger les annotations DS avec gestion d'erreur améliorée
+  document
+    .getElementById("load-annotations")
+    .addEventListener("click", function () {
+      const button = this;
+      const loading = document.getElementById("annotations-loading");
+
+      button.disabled = true;
+      loading.style.display = "block";
+      loading.innerHTML = "Chargement des annotations...";
+
+      fetch("/get_sample_annotations")
+        .then((response) => {
+          if (!response.ok) {
+            return handleApiError(response, "Erreur annotations DS").then(
+              (msg) => {
+                throw new Error(msg);
+              }
+            );
+          }
+          return response.json();
+        })
+        .then((data) => {
+          loading.style.display = "none";
+          button.disabled = false;
+
+          if (data.success) {
+            availableAnnotations = data.annotations;
+
+            // Utiliser les types depuis les annotations récupérées
+            data.annotations.forEach((ann) => {
+              if (ann.ds_type) {
+                annotationTypes[ann.label] = ann.ds_type;
+              }
+            });
+
+            annotationsLoaded = true;
+            button.textContent = `Annotations chargées ✓ (${data.annotations.length})`;
+            button.classList.remove("btn-info");
+            button.classList.add("btn-success");
+
+            updateMappingForm();
+
+            // Afficher des infos de debug si disponibles
+            if (data.debug_info) {
+              console.log("Infos debug annotations:", data.debug_info);
+            }
+          } else {
+            throw new Error(data.error || "Erreur inconnue");
+          }
+        })
+        .catch((error) => {
+          loading.style.display = "none";
+          button.disabled = false;
+          button.textContent = "Erreur - Réessayer";
+          button.classList.remove("btn-info", "btn-success");
+          button.classList.add("btn-danger");
+
+          alert("Erreur chargement annotations DS: " + error.message);
+        });
+    });
+
+  function setupEventListeners() {
+    document
+      .getElementById("dossier-id-column")
+      .addEventListener("change", function () {
+        dossierIdColumn = this.value;
+        updateMappingForm();
+        updateCurrentConfig();
+      });
+
+    document.querySelectorAll(".sync-column").forEach((checkbox) => {
+      checkbox.addEventListener("change", function () {
+        updateMappingForm();
+        updateCurrentConfig();
+      });
+    });
+  }
+
+  function updateMappingForm() {
+    const selectedColumns = Array.from(
+      document.querySelectorAll(".sync-column:checked")
+    ).map((cb) => cb.value);
+    const mappingSection = document.getElementById("mapping-section");
+    const mappingForm = document.getElementById("mapping-form");
+    const syncParams = document.getElementById("sync-params");
+    const actionButtons = document.getElementById("action-buttons");
+
+    if (selectedColumns.length > 0 && dossierIdColumn) {
+      mappingSection.style.display = "block";
+      syncParams.style.display = "block";
+      actionButtons.style.display = "block";
+
+      if (!annotationsLoaded) {
+        mappingForm.innerHTML =
+          '<div class="alert alert-warning">Chargez d\'abord les annotations DS en cliquant sur le bouton ci-dessus.</div>';
+        return;
+      }
+
+      generateMappingInterface(selectedColumns);
+    } else {
+      mappingSection.style.display = "none";
+      syncParams.style.display = "none";
+      actionButtons.style.display = "none";
+    }
+  }
+
+  function generateMappingInterface(selectedColumns) {
+    const mappingForm = document.getElementById("mapping-form");
+
+    let html = '<div class="alert alert-success mb-3">';
+    html += `<strong>Annotations chargées :</strong> ${availableAnnotations.length} annotations disponibles`;
+    if (Object.keys(currentMapping).length > 0) {
+      html += `<br><strong>Mapping actuel :</strong> ${
+        Object.keys(currentMapping).length
+      } correspondance(s)`;
+    }
+    html += "</div>";
+
+    html += "<p>Associez chaque colonne Grist à une annotation DS :</p>";
+    html += '<div class="table-responsive"><table class="table table-sm">';
+    html +=
+      "<thead><tr><th>Colonne Grist</th><th>Annotation DS</th><th>Compatibilité</th></tr></thead><tbody>";
+
+    selectedColumns.forEach((colId) => {
+      const column = gristColumns.find((c) => c.id === colId);
+      const sampleValue = sampleData[colId];
+
+      html += `
+        <tr>
+          <td>
+            <strong>${colId}</strong><br>
+            <small>(${column.type})</small>
+            ${
+              sampleValue
+                ? `<br><small class="sample-value text-muted">Ex: "${String(
+                    sampleValue
+                  ).substring(0, 30)}"</small>`
+                : ""
+            }
+          </td>
+          <td>
+            <select class="form-control form-control-sm annotation-mapping" data-grist-column="${colId}">
+              <option value="">-- Choisir une annotation DS --</option>`;
+
+      availableAnnotations.forEach((annotation) => {
+        const annotationType = annotation.ds_type || "text";
+        const selected =
+          currentMapping[colId] === annotation.label ? "selected" : "";
+        html += `<option value="${annotation.label}" data-ds-type="${annotationType}" ${selected}>${annotation.label} (${annotationType})</option>`;
+      });
+
+      html += `
+            </select>
+          </td>
+          <td id="compat-${colId}">`;
+
+      // Afficher la compatibilité si un mapping existe
+      if (currentMapping[colId]) {
+        const gristColumn = gristColumns.find((c) => c.id === colId);
+        const dsType = annotationTypes[currentMapping[colId]];
+        const sampleValue = sampleData[colId];
+
+        if (gristColumn && dsType) {
+          const compatibility = checkCompatibility(
+            gristColumn.type,
+            dsType,
+            sampleValue
+          );
+          html += getCompatibilityBadge(compatibility);
+        }
+      } else {
+        html += "Sélectionnez une annotation";
+      }
+
+      html += `</td>
+        </tr>`;
+    });
+
+    html += "</tbody></table></div>";
+
+    // Légende
+    html += '<div class="mt-3"><h6>Légende :</h6>';
+    html +=
+      '<span class="badge compatibility-badge badge-compatible me-2">Compatible</span> ';
+    html +=
+      '<span class="badge compatibility-badge badge-needs-conversion me-2">Conversion</span> ';
+    html +=
+      '<span class="badge compatibility-badge badge-incompatible">Incompatible</span>';
+    html += "</div>";
+
+    mappingForm.innerHTML = html;
+
+    // Event listeners pour le mapping
+    document.querySelectorAll(".annotation-mapping").forEach((select) => {
+      select.addEventListener("change", function () {
+        const gristCol = this.dataset.gristColumn;
+        const annotationLabel = this.value;
+        const selectedOption = this.options[this.selectedIndex];
+        const dsType = selectedOption.dataset.dsType;
+
+        if (annotationLabel) {
+          currentMapping[gristCol] = annotationLabel;
+
+          // Mettre à jour la compatibilité
+          const gristColumn = gristColumns.find((c) => c.id === gristCol);
+          const compatElement = document.getElementById("compat-" + gristCol);
+          const sampleValue = sampleData[gristCol];
+
+          if (compatElement && gristColumn) {
+            const compatibility = checkCompatibility(
+              gristColumn.type,
+              dsType,
+              sampleValue
+            );
+            compatElement.innerHTML = getCompatibilityBadge(compatibility);
+          }
+        } else {
+          delete currentMapping[gristCol];
+          const compatElement = document.getElementById("compat-" + gristCol);
+          if (compatElement)
+            compatElement.innerHTML = "Sélectionnez une annotation";
+        }
+
+        updateCurrentConfig();
+      });
+    });
+  }
+
+  function checkCompatibility(gristType, dsType, sampleValue = null) {
+    const compatibilityMap = {
+      Text: {
+        text: "compatible",
+        textarea: "compatible",
+        checkbox: "needs_conversion",
+        date: "needs_conversion",
+        datetime: "needs_conversion",
+        number: "needs_conversion",
+        integer_number: "needs_conversion",
+        decimal_number: "needs_conversion",
+        drop_down_list: "compatible",
+      },
+      Numeric: {
+        text: "compatible",
+        textarea: "compatible",
+        number: "compatible",
+        integer_number: "needs_conversion",
+        decimal_number: "compatible",
+        checkbox: "incompatible",
+        date: "incompatible",
+        datetime: "incompatible",
+        drop_down_list: "needs_conversion",
+      },
+      Int: {
+        text: "compatible",
+        textarea: "compatible",
+        number: "compatible",
+        integer_number: "compatible",
+        decimal_number: "compatible",
+        checkbox: "incompatible",
+        date: "incompatible",
+        datetime: "incompatible",
+        drop_down_list: "needs_conversion",
+      },
+      Date: {
+        text: "compatible",
+        textarea: "compatible",
+        date: "compatible",
+        datetime: "compatible",
+        checkbox: "incompatible",
+        number: "incompatible",
+        integer_number: "incompatible",
+        decimal_number: "incompatible",
+        drop_down_list: "incompatible",
+      },
+      DateTime: {
+        text: "compatible",
+        textarea: "compatible",
+        date: "needs_conversion",
+        datetime: "compatible",
+        checkbox: "incompatible",
+        number: "incompatible",
+        integer_number: "incompatible",
+        decimal_number: "incompatible",
+        drop_down_list: "incompatible",
+      },
+      Bool: {
+        text: "compatible",
+        textarea: "compatible",
+        checkbox: "compatible",
+        date: "incompatible",
+        datetime: "incompatible",
+        number: "incompatible",
+        integer_number: "incompatible",
+        decimal_number: "incompatible",
+        drop_down_list: "needs_conversion",
+      },
+    };
+
+    const dsTypeNormalized = dsType
+      .toLowerCase()
+      .replace("annotation_descriptor_", "");
+    let compatibility =
+      compatibilityMap[gristType]?.[dsTypeNormalized] || "incompatible";
+
+    // Vérifications spéciales avec valeur échantillon
+    if (sampleValue !== null && sampleValue !== undefined) {
+      if (dsTypeNormalized === "checkbox" && gristType === "Text") {
+        const val = String(sampleValue).toLowerCase();
+        compatibility = [
+          "true",
+          "false",
+          "1",
+          "0",
+          "oui",
+          "non",
+          "yes",
+          "no",
+        ].includes(val)
+          ? "compatible"
+          : "incompatible";
+      }
+
+      if (
+        ["number", "integer_number", "decimal_number"].includes(
+          dsTypeNormalized
+        ) &&
+        gristType === "Text"
+      ) {
+        try {
+          parseFloat(String(sampleValue));
+          compatibility = "compatible";
+        } catch {
+          compatibility = "incompatible";
+        }
+      }
+    }
+
+    return compatibility;
+  }
+
+  function getCompatibilityBadge(compatibility) {
+    const badges = {
+      compatible:
+        '<span class="badge compatibility-badge badge-compatible">✓ Compatible</span>',
+      needs_conversion:
+        '<span class="badge compatibility-badge badge-needs-conversion">⚠ Conversion</span>',
+      incompatible:
+        '<span class="badge compatibility-badge badge-incompatible">✗ Incompatible</span>',
+    };
+    return badges[compatibility] || badges["incompatible"];
+  }
+
+  function updateCurrentConfig() {
+    const configDiv = document.getElementById("current-config");
+    const selectedColumns = Array.from(
+      document.querySelectorAll(".sync-column:checked")
+    ).map((cb) => cb.value);
+
+    if (currentTable && dossierIdColumn && selectedColumns.length > 0) {
+      let html = `<div class="mb-2"><strong>Table :</strong> ${currentTable}</div>`;
+      html += `<div class="mb-2"><strong>Colonne dossiers :</strong> ${dossierIdColumn}</div>`;
+      html += '<div class="mb-2"><strong>Mappings :</strong><br>';
+
+      selectedColumns.forEach((col) => {
+        const annotation = currentMapping[col] || "Non définie";
+        const gristColumn = gristColumns.find((c) => c.id === col);
+        const dsType = annotationTypes[annotation];
+        const sampleValue = sampleData[col];
+
+        let compatBadge = "";
+        if (annotation !== "Non définie" && gristColumn && dsType) {
+          const compatibility = checkCompatibility(
+            gristColumn.type,
+            dsType,
+            sampleValue
+          );
+          const badgeClass =
+            compatibility === "compatible"
+              ? "success"
+              : compatibility === "needs_conversion"
+              ? "warning"
+              : "danger";
+          compatBadge = ` <span class="badge bg-${badgeClass}">${compatibility}</span>`;
+        }
+
+        html += `• ${col} → ${annotation}${compatBadge}<br>`;
+      });
+      html += "</div>";
+
+      configDiv.innerHTML = html;
+    } else {
+      configDiv.innerHTML =
+        '<p class="text-muted">Configurez d\'abord la synchronisation</p>';
+    }
+  }
+
+  // Validation de compatibilité
+  document
+    .getElementById("validate-compatibility")
+    .addEventListener("click", function () {
+      if (!validateConfig()) return;
+
+      const compatibilityContent = document.getElementById(
+        "compatibility-content"
+      );
+      compatibilityContent.innerHTML =
+        '<div class="text-center"><div class="spinner-border"></div><br>Validation en cours...</div>';
+
+      new bootstrap.Modal(document.getElementById("compatibilityModal")).show();
+
+      const validationData = {
+        table_id: currentTable,
+        column_mapping: currentMapping,
+        annotation_types: annotationTypes,
+      };
+
+      fetch("/validate_compatibility", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(validationData),
+      })
+        .then((response) => {
+          if (!response.ok) {
+            return handleApiError(response, "Erreur validation").then((msg) => {
+              throw new Error(msg);
+            });
+          }
+          return response.json();
+        })
+        .then((data) => {
+          if (data.success) {
+            let html = "<h6>Rapport de compatibilité :</h6>";
+            html +=
+              '<div class="table-responsive"><table class="table table-sm">';
+            html +=
+              "<thead><tr><th>Colonne</th><th>Type Grist</th><th>Type DS</th><th>Statut</th><th>Échantillons</th></tr></thead><tbody>";
+
+            data.compatibility_results.forEach((result) => {
+              const badgeClass =
+                result.compatibility === "compatible"
+                  ? "success"
+                  : result.compatibility === "needs_conversion"
+                  ? "warning"
+                  : "danger";
+
+              html += `
+              <tr>
+                <td>${result.grist_column}</td>
+                <td>${result.grist_type}</td>
+                <td>${result.ds_type}</td>
+                <td><span class="badge bg-${badgeClass}">${
+                result.compatibility
+              }</span></td>
+                <td><small>${result.sample_values
+                  .slice(0, 2)
+                  .join(", ")}</small></td>
+              </tr>`;
+            });
+
+            html += "</tbody></table></div>";
+            compatibilityContent.innerHTML = html;
+          } else {
+            throw new Error(data.error || "Erreur validation");
+          }
+        })
+        .catch((error) => {
+          compatibilityContent.innerHTML = `<div class="alert alert-danger">Erreur: ${error.message}</div>`;
+        });
+    });
+
+  // Démarrer la synchronisation
+  document.getElementById("start-sync").addEventListener("click", function () {
+    if (!validateConfig()) return;
+
+    startSynchronization();
+  });
+
+  document
+    .getElementById("proceed-sync")
+    .addEventListener("click", function () {
+      bootstrap.Modal.getInstance(
+        document.getElementById("compatibilityModal")
+      ).hide();
+      startSynchronization();
+    });
+
+  function validateConfig() {
+    if (
+      !currentTable ||
+      !dossierIdColumn ||
+      Object.keys(currentMapping).length === 0
+    ) {
+      alert("Veuillez configurer complètement la synchronisation");
+      return false;
+    }
+    return true;
+  }
+
+  function startSynchronization() {
+    const button = document.getElementById("start-sync");
+    const resultsDiv = document.getElementById("sync-results");
+    const statusDiv = document.getElementById("sync-status");
+    const detailsDiv = document.getElementById("sync-details");
+
+    button.disabled = true;
+    button.textContent = "Synchronisation en cours...";
+
+    statusDiv.innerHTML =
+      '<div class="spinner-border spinner-border-sm me-2"></div>Synchronisation en cours...';
+    resultsDiv.style.display = "block";
+    detailsDiv.innerHTML = "";
+
+    const syncData = {
+      table_id: currentTable,
+      dossier_id_column: dossierIdColumn,
+      column_mapping: currentMapping,
+      annotation_types: annotationTypes,
+      limit: parseInt(document.getElementById("sync-limit").value) || 50,
+      update_grist_status: document.getElementById("update-grist-status")
+        .checked,
+      dry_run: document.getElementById("dry-run").checked,
+      detect_changes: document.getElementById("detect-changes").checked,
+    };
+
+    fetch("/execute_sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(syncData),
+    })
+      .then((response) => {
+        if (!response.ok) {
+          return handleApiError(response, "Erreur synchronisation").then(
+            (msg) => {
+              throw new Error(msg);
+            }
+          );
+        }
+        return response.json();
+      })
+      .then((data) => {
+        button.disabled = false;
+        button.textContent = "Démarrer la synchronisation";
+
+        if (data.success) {
+          statusDiv.innerHTML = `
+            <div class="alert alert-success">
+              <strong>Synchronisation ${
+                syncData.dry_run ? "testée" : "terminée"
+              } !</strong><br>
+              Traités: ${data.processed} | Réussis: ${
+            data.successful
+          } | Erreurs: ${data.errors}
+              ${
+                data.execution_time
+                  ? ` | Temps: ${data.execution_time.toFixed(2)}s`
+                  : ""
+              }
+            </div>`;
+
+          displaySyncDetails(data);
+        } else {
+          throw new Error(data.error || "Erreur synchronisation");
+        }
+      })
+      .catch((error) => {
+        button.disabled = false;
+        button.textContent = "Démarrer la synchronisation";
+        statusDiv.innerHTML = `<div class="alert alert-danger"><strong>Erreur :</strong> ${error.message}</div>`;
+      });
+  }
+
+  function displaySyncDetails(data) {
+    const detailsDiv = document.getElementById("sync-details");
+    let details = "";
+
+    if (data.results.length > 0) {
+      details += "<h6>Succès :</h6>";
+      details +=
+        '<div class="table-responsive"><table class="table table-sm table-success">';
+      details +=
+        "<thead><tr><th>Record</th><th>Dossier</th><th>Annotations</th></tr></thead><tbody>";
+      data.results.forEach((result) => {
+        details += `
+          <tr>
+            <td>${result.grist_record_id}</td>
+            <td>#${result.dossier_number || "N/A"}</td>
+            <td>${result.updates.length} mises à jour</td>
+          </tr>`;
+      });
+      details += "</tbody></table></div>";
+    }
+
+    if (data.error_details.length > 0) {
+      details += '<h6 class="mt-3">Erreurs :</h6>';
+      details +=
+        '<div class="table-responsive"><table class="table table-sm table-danger">';
+      details +=
+        "<thead><tr><th>Record</th><th>Dossier</th><th>Erreur</th></tr></thead><tbody>";
+      data.error_details.forEach((error) => {
+        details += `
+          <tr>
+            <td>${error.grist_record_id || "N/A"}</td>
+            <td>#${error.dossier_number || "N/A"}</td>
+            <td><small>${JSON.stringify(
+              error.errors || "Erreur inconnue"
+            )}</small></td>
+          </tr>`;
+      });
+      details += "</tbody></table></div>";
+    }
+
+    detailsDiv.innerHTML = details;
+  }
+
+  // Exporter la configuration
+  document
+    .getElementById("export-config")
+    .addEventListener("click", function () {
+      const exportData = {
+        table_id: currentTable,
+        dossier_id_column: dossierIdColumn,
+        column_mapping: currentMapping,
+        annotation_types: annotationTypes,
+        limit: document.getElementById("sync-limit").value,
+      };
+
+      fetch("/export_config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(exportData),
+      })
+        .then((response) => {
+          if (!response.ok) {
+            return handleApiError(response, "Erreur export").then((msg) => {
+              throw new Error(msg);
+            });
+          }
+          return response.json();
+        })
+        .then((data) => {
+          if (data.success) {
+            const blob = new Blob([JSON.stringify(data.config, null, 2)], {
+              type: "application/json",
+            });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `grist-ds-config-${Date.now()}.json`;
+            a.click();
+            URL.revokeObjectURL(url);
+          } else {
+            throw new Error(data.error || "Erreur export");
+          }
+        })
+        .catch((error) => {
+          alert("Erreur export: " + error.message);
+        });
+    });
+
+  // Vérification des colonnes Grist
+  document
+    .getElementById("check-grist-columns")
+    .addEventListener("click", function () {
+      if (!currentTable) {
+        alert("Sélectionnez d'abord une table");
+        return;
+      }
+
+      const statusDiv = document.getElementById("columns-status");
+      statusDiv.innerHTML =
+        '<div class="spinner-border spinner-border-sm"></div> Vérification...';
+
+      // Vérifier les colonnes recommandées
+      const recommendedColumns = [
+        "sync_status",
+        "sync_date",
+        "sync_message",
+        "sync_hash",
+      ];
+      const existingColumns = gristColumns.map((c) => c.id);
+
+      let html = '<div class="mt-2">';
+      recommendedColumns.forEach((col) => {
+        const exists = existingColumns.includes(col);
+        const icon = exists ? "✅" : "❌";
+        const status = exists ? "Présente" : "Manquante";
+        const isNew =
+          col === "sync_hash"
+            ? ' <span class="badge bg-info">Nouveau!</span>'
+            : "";
+        html += `<div><small>${icon} <code>${col}</code> - ${status}${isNew}</small></div>`;
+      });
+
+      const missingCount = recommendedColumns.filter(
+        (col) => !existingColumns.includes(col)
+      ).length;
+      if (missingCount > 0) {
+        html += `<div class="alert alert-warning mt-2 small">
+        ${missingCount} colonne(s) recommandée(s) manquante(s). 
+        Ajoutez-les manuellement dans Grist pour un meilleur suivi.
+        <br><strong>sync_hash</strong> permet la détection automatique des modifications !
+      </div>`;
+      } else {
+        html +=
+          '<div class="alert alert-success mt-2 small">Toutes les colonnes recommandées sont présentes ! La détection automatique des modifications est active.</div>';
+      }
+      html += "</div>";
+
+      statusDiv.innerHTML = html;
+    });
+
+  // Vérification de la configuration au chargement
+  document
+    .getElementById("verify-config")
+    .addEventListener("click", function () {
+      const statusDiv = document.getElementById("config-status");
+      const button = this;
+
+      button.disabled = true;
+      statusDiv.style.display = "block";
+      statusDiv.innerHTML =
+        '<div class="spinner-border spinner-border-sm me-2"></div>Vérification de la configuration...';
+
+      fetch("/test_connections")
+        .then((response) => {
+          if (!response.ok) {
+            return handleApiError(response, "Erreur test connexions").then(
+              (msg) => {
+                throw new Error(msg);
+              }
+            );
+          }
+          return response.json();
+        })
+        .then((data) => {
+          button.disabled = false;
+
+          let html = '<div class="alert ';
+          let allOk = data.grist?.success && data.ds?.success;
+
+          if (allOk) {
+            html +=
+              'alert-success"><i class="bi bi-check-circle"></i> <strong>Configuration valide !</strong><br>';
+            html += "Toutes les connexions fonctionnent correctement.";
+          } else {
+            html +=
+              'alert-warning"><i class="bi bi-exclamation-triangle"></i> <strong>Problème de configuration</strong><br>';
+
+            if (!data.grist?.success) {
+              html += `• Grist: ${data.grist?.data}<br>`;
+            }
+            if (!data.ds?.success) {
+              html += `• DS: ${data.ds?.data}<br>`;
+            }
+
+            html +=
+              '<a href="/" class="btn btn-sm btn-primary mt-2">Corriger la configuration</a>';
+          }
+
+          html += "</div>";
+          statusDiv.innerHTML = html;
+        })
+        .catch((error) => {
+          button.disabled = false;
+          statusDiv.innerHTML = `<div class="alert alert-danger">Erreur: ${error.message}</div>`;
+        });
+    });
+
+  // Effacer la configuration
+  document
+    .getElementById("clear-config")
+    .addEventListener("click", function () {
+      if (
+        confirm(
+          "Êtes-vous sûr de vouloir effacer toute la configuration sauvegardée ?"
+        )
+      ) {
+        fetch("/clear_config", {
+          method: "POST",
+        })
+          .then((response) => {
+            if (!response.ok) {
+              return handleApiError(response, "Erreur effacement").then(
+                (msg) => {
+                  throw new Error(msg);
+                }
+              );
+            }
+            return response.json();
+          })
+          .then((data) => {
+            if (data.success) {
+              alert("Configuration effacée avec succès");
+              window.location.reload();
+            } else {
+              throw new Error(data.error || "Erreur effacement");
+            }
+          })
+          .catch((error) => {
+            alert("Erreur effacement: " + error.message);
+          });
+      }
+    });
+
+  // Auto-vérification au chargement de la page
+  window.addEventListener("load", function () {
+    // Petite pause pour laisser la page se charger
+    setTimeout(() => {
+      document.getElementById("verify-config").click();
+    }, 1000);
+  });
+</script>
+{% endblock %}
