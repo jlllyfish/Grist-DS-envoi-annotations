@@ -1,1 +1,115 @@
+name: 🔄 Grist to DS Sync
+# 📝 Personnaliser le nom selon votre projet
 
+env:
+  PROJECT_NAME: mon-projet-example
+  # 🎯 Personnaliser selon votre projet
+  DEFAULT_LIMIT: 50
+  # ⚙️ Ajuster selon vos besoins (max 500)
+  
+on:
+  # ⏰ Planification automatique
+  schedule:
+    - cron: '0 9,17 * * 1-5'  # 9h et 17h, lundi-vendredi
+    # 🕘 Personnaliser selon vos besoins de synchronisation
+    # Exemples :
+    # - cron: '0 8,12,16 * * 1-5'  # 🕗🕛🕓 3 fois par jour
+    # - cron: '*/30 9-17 * * 1-5'  # ⏱️ Toutes les 30min, 9h-17h
+    # - cron: '0 10 * * *'         # 🌅 Une fois par jour à 10h
+  
+  # 🎮 Déclenchement manuel
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: '📊 Nombre max d\'enregistrements à traiter'
+        required: false
+        default: '50'
+        type: string
+      dry_run:
+        description: '🧪 Mode test (aucune modification)'
+        required: false
+        default: false
+        type: boolean
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: 📥 Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: 🐍 Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+        
+    - name: 📦 Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r shared/requirements.txt
+        
+    - name: 🔧 Create dynamic config
+      env:
+        # 🔐 Secrets spécifiques au projet - À PERSONNALISER
+        GRIST_TOKEN: ${{ secrets.MON_PROJET_GRIST_TOKEN }}
+        DS_TOKEN: ${{ secrets.MON_PROJET_DS_TOKEN }}
+        DS_INSTRUCTEUR_ID: ${{ secrets.MON_PROJET_DS_INSTRUCTEUR_ID }}
+        # 🎯 Remplacer MON_PROJET par votre nom de projet
+      run: |
+        # 📋 Charger la config de base et injecter les secrets
+        python3 -c "
+        import json
+        import os
+        
+        # 📖 Charger config.json (sans les secrets)
+        with open('projects/${{ env.PROJECT_NAME }}/config.json', 'r') as f:
+            config = json.load(f)
+        
+        # 🔑 Injecter les secrets depuis les variables d'environnement
+        config['grist_token'] = os.environ['GRIST_TOKEN']
+        config['ds_token'] = os.environ['DS_TOKEN'] 
+        config['ds_instructeur_id'] = os.environ['DS_INSTRUCTEUR_ID']
+        
+        # 🎛️ Paramètres depuis les inputs (si déclenchement manuel)
+        limit = '${{ github.event.inputs.limit }}' or '${{ env.DEFAULT_LIMIT }}'
+        dry_run = '${{ github.event.inputs.dry_run }}' == 'true'
+        
+        config['limit'] = int(limit)
+        config['dry_run'] = dry_run
+        
+        # 💾 Sauvegarder la config complète temporairement
+        with open('/tmp/runtime_config.json', 'w') as f:
+            json.dump(config, f, indent=2)
+        
+        print(f'✅ Config créée - Limite: {limit}, Dry run: {dry_run}')
+        "
+        
+    - name: 🚀 Execute synchronization
+      run: |
+        cd shared
+        python sync_cli.py --config /tmp/runtime_config.json --verbose
+      
+    - name: 📋 Upload logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v3
+      with:
+        name: sync-logs-${{ env.PROJECT_NAME }}-${{ github.run_number }}
+        path: |
+          sync.log
+          *.log
+        retention-days: 7
+        
+    - name: 🚨 Notify on failure (optionnel)
+      if: failure()
+      run: |
+        echo "⚠️ Synchronisation échouée pour le projet ${{ env.PROJECT_NAME }}"
+        echo "📊 Consultez les logs dans les artifacts de cette exécution"
+        # 💬 Ici vous pourriez ajouter une notification Slack, email, etc.
+
+    - name: 🧹 Clean up sensitive files
+      if: always()
+      run: |
+        # 🗑️ Nettoyer les fichiers contenant des secrets
+        rm -f /tmp/runtime_config.json
+        rm -f sync.log
