@@ -202,6 +202,49 @@ def get_table_data(table_id):
         logger.error(f"Exception get_table_data: {e}")
         return jsonify({'success': False, 'error': f'Erreur serveur: {str(e)}'}), 500
 
+@app.route('/get_instructeurs')
+def get_instructeurs():
+    """Récupère la liste des instructeurs de la démarche"""
+    if not config['ds_token'] or not config['demarche_number']:
+        return jsonify({'error': 'Configuration DS incomplète (token et numéro de démarche requis)'}), 400
+
+    try:
+        logger.info(f"Début get_instructeurs - Démarche: {config['demarche_number']}")
+
+        ds_client = DSClient(config['ds_token'], config.get('instructeur_id', ''))
+
+        # Test de connexion d'abord
+        conn_success, conn_data = ds_client.test_connection()
+        if not conn_success:
+            logger.error(f"Connexion DS échouée: {conn_data}")
+            return jsonify({'success': False, 'error': f'Connexion DS échouée: {conn_data}'}), 500
+
+        logger.info("Connexion DS OK, récupération des instructeurs...")
+
+        # Récupérer les instructeurs
+        success, instructeurs_data = ds_client.get_instructeurs(int(config['demarche_number']))
+        if not success:
+            logger.error(f"Erreur get_instructeurs: {instructeurs_data}")
+            return jsonify({'success': False, 'error': f'Erreur récupération instructeurs: {instructeurs_data}'}), 500
+
+        if not instructeurs_data:
+            logger.warning("Aucun instructeur trouvé")
+            return jsonify({'success': False, 'error': 'Aucun instructeur trouvé dans cette démarche'}), 400
+
+        logger.info(f"Instructeurs trouvés: {len(instructeurs_data)}")
+
+        return jsonify({
+            'success': True,
+            'instructeurs': instructeurs_data,
+            'total': len(instructeurs_data)
+        })
+
+    except Exception as e:
+        logger.error(f"Exception globale get_instructeurs: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': f'Erreur serveur: {str(e)}'}), 500
+
 @app.route('/get_sample_annotations')
 def get_sample_annotations():
     """Récupère les annotations d'un dossier échantillon"""

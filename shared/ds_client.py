@@ -50,6 +50,70 @@ class DSClient:
             logger.error(f"Erreur test connexion DS: {e}")
             return False, str(e)
     
+    def get_instructeurs(self, demarche_number: int) -> Tuple[bool, Any]:
+        """Récupère les groupes d'instructeurs et leurs instructeurs pour une démarche"""
+        try:
+            query = """
+            query getInstructeurs($demarcheNumber: Int!) {
+                demarche(number: $demarcheNumber) {
+                    id
+                    number
+                    title
+                    groupeInstructeurs {
+                        id
+                        number
+                        label
+                        instructeurs {
+                            id
+                            email
+                        }
+                    }
+                }
+            }
+            """
+            response = requests.post(
+                self.base_url,
+                headers=self.headers,
+                json={
+                    'query': query,
+                    'variables': {'demarcheNumber': int(demarche_number)}
+                },
+                timeout=15
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                if 'errors' in data:
+                    return False, data['errors']
+                if not data['data']['demarche']:
+                    return False, "Démarche non trouvée"
+
+                groupe_instructeurs = data['data']['demarche']['groupeInstructeurs']
+
+                # Extraire tous les instructeurs uniques
+                instructeurs_map = {}
+                for groupe in groupe_instructeurs:
+                    for instructeur in groupe['instructeurs']:
+                        instructeur_id = instructeur['id']
+                        if instructeur_id not in instructeurs_map:
+                            instructeurs_map[instructeur_id] = {
+                                'id': instructeur_id,
+                                'email': instructeur['email'],
+                                'groupes': []
+                            }
+                        instructeurs_map[instructeur_id]['groupes'].append({
+                            'id': groupe['id'],
+                            'label': groupe['label']
+                        })
+
+                instructeurs_list = list(instructeurs_map.values())
+                logger.info(f"Instructeurs récupérés: {len(instructeurs_list)}")
+                return True, instructeurs_list
+            return False, f"HTTP {response.status_code}: {response.text}"
+        except Exception as e:
+            logger.error(f"Erreur récupération instructeurs: {e}")
+            return False, str(e)
+
     def get_dossiers(self, demarche_number: int, limit: int = 50) -> Tuple[bool, Any]:
         """Récupère les dossiers d'une démarche par son numéro"""
         try:
@@ -85,14 +149,14 @@ class DSClient:
                 },
                 timeout=30
             )
-            
+
             if response.status_code == 200:
                 data = response.json()
                 if 'errors' in data:
                     return False, data['errors']
                 if not data['data']['demarche']:
                     return False, "Démarche non trouvée"
-                
+
                 dossiers = data['data']['demarche']['dossiers']['nodes']
                 logger.info(f"Dossiers récupérés: {len(dossiers)}")
                 return True, dossiers
