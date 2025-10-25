@@ -56,6 +56,23 @@ endblock %} {% block content %}
             />
             <div class="form-text">Numéro de la démarche DS à utiliser</div>
           </div>
+          <div class="mb-3">
+            <button
+              type="button"
+              id="load-instructeurs"
+              class="btn btn-outline-secondary w-100"
+            >
+              <i class="bi bi-people"></i> Charger les instructeurs de la
+              démarche
+            </button>
+            <div id="instructeurs-loading" class="loading mt-2">
+              <div class="spinner-border spinner-border-sm" role="status">
+                <span class="visually-hidden">Chargement...</span>
+              </div>
+              Chargement des instructeurs...
+            </div>
+            <div id="instructeurs-list" class="mt-3"></div>
+          </div>
         </div>
       </div>
 
@@ -247,6 +264,119 @@ endblock %} {% block content %}
           results.innerHTML = `<div class="connection-status connection-error">
                 <strong>Erreur:</strong> ${error.message}
             </div>`;
+        });
+    });
+
+  // Gestion du chargement des instructeurs
+  document
+    .getElementById("load-instructeurs")
+    .addEventListener("click", function () {
+      const button = this;
+      const loading = document.getElementById("instructeurs-loading");
+      const listContainer = document.getElementById("instructeurs-list");
+      const dsToken = document.getElementById("ds_token").value;
+      const demarcheNumber = document.getElementById("demarche_number").value;
+
+      // Vérifier que les champs requis sont remplis
+      if (!dsToken || !demarcheNumber) {
+        listContainer.innerHTML = `<div class="alert alert-warning">
+          <i class="bi bi-exclamation-triangle"></i> Veuillez d'abord renseigner le token DS et le numéro de démarche
+        </div>`;
+        return;
+      }
+
+      button.disabled = true;
+      loading.style.display = "block";
+      listContainer.innerHTML = "";
+
+      fetch("/get_instructeurs")
+        .then((response) => response.json())
+        .then((data) => {
+          loading.style.display = "none";
+          button.disabled = false;
+
+          if (data.success && data.instructeurs) {
+            let html = `<div class="alert alert-info">
+              <strong><i class="bi bi-info-circle"></i> ${data.total} instructeur(s) trouvé(s)</strong>
+            </div>
+            <div class="list-group">`;
+
+            data.instructeurs.forEach((instructeur) => {
+              const groupesText = instructeur.groupes
+                .map((g) => g.label)
+                .join(", ");
+              html += `<button
+                type="button"
+                class="list-group-item list-group-item-action instructeur-item"
+                data-instructeur-id="${instructeur.id}"
+                data-instructeur-email="${instructeur.email}">
+                <div class="d-flex w-100 justify-content-between">
+                  <h6 class="mb-1"><i class="bi bi-person"></i> ${instructeur.email}</h6>
+                </div>
+                <p class="mb-1"><strong>ID:</strong> <code>${instructeur.id}</code></p>
+                ${
+                  groupesText
+                    ? `<small class="text-muted"><strong>Groupes:</strong> ${groupesText}</small>`
+                    : ""
+                }
+              </button>`;
+            });
+
+            html += "</div>";
+            listContainer.innerHTML = html;
+
+            // Ajouter les gestionnaires d'événements pour sélectionner un instructeur
+            document.querySelectorAll(".instructeur-item").forEach((item) => {
+              item.addEventListener("click", function () {
+                const instructeurId = this.getAttribute("data-instructeur-id");
+                const instructeurEmail =
+                  this.getAttribute("data-instructeur-email");
+
+                // Mettre à jour le champ instructeur_id
+                document.getElementById("instructeur_id").value = instructeurId;
+
+                // Mettre en évidence l'élément sélectionné
+                document.querySelectorAll(".instructeur-item").forEach((i) => {
+                  i.classList.remove("active");
+                });
+                this.classList.add("active");
+
+                // Afficher une confirmation
+                const confirmationMsg = `<div class="alert alert-success mt-2">
+                  <i class="bi bi-check-circle"></i> Instructeur sélectionné: <strong>${instructeurEmail}</strong> (ID: ${instructeurId})
+                </div>`;
+
+                // Supprimer l'ancien message de confirmation s'il existe
+                const oldConfirmation = document.querySelector(
+                  "#instructeurs-list .alert-success"
+                );
+                if (oldConfirmation && !oldConfirmation.closest(".list-group")) {
+                  oldConfirmation.remove();
+                }
+
+                // Ajouter le nouveau message après la liste
+                listContainer.insertAdjacentHTML("beforeend", confirmationMsg);
+
+                // Scroll vers le champ instructeur_id pour montrer la mise à jour
+                document
+                  .getElementById("instructeur_id")
+                  .scrollIntoView({ behavior: "smooth", block: "center" });
+              });
+            });
+          } else {
+            listContainer.innerHTML = `<div class="alert alert-danger">
+              <i class="bi bi-exclamation-circle"></i> ${
+                data.error || "Erreur lors du chargement des instructeurs"
+              }
+            </div>`;
+          }
+        })
+        .catch((error) => {
+          loading.style.display = "none";
+          button.disabled = false;
+          listContainer.innerHTML = `<div class="alert alert-danger">
+            <i class="bi bi-exclamation-circle"></i> Erreur: ${error.message}
+          </div>`;
         });
     });
 </script>
